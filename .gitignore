@@ -1,0 +1,32 @@
+# PyInstaller
+/dist/
+/build/
+/*.spec
+
+# Entornos virtuales
+/venv/
+/env/
+/.venv/
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos de datos
+*.db
+*.sqlite
+
+# Archivos de configuración local
+*.local
+.env
