@@ -95,7 +95,7 @@ class MiApp:
             unidades = int(guia['unidades'])
             for unidad in range(1, unidades + 1):
                 zpl_code = self.generar_rotulo(datos_dict, str(unidad))                                                        
-                '''if sys.platform == 'win32':
+                if sys.platform == 'win32':
                     printer_name = "ZDesigner ZD230-203dpi ZPL"
                     import win32print
                     hPrinter = win32print.OpenPrinter(printer_name)
@@ -113,7 +113,7 @@ class MiApp:
                     import subprocess
                     lpr = subprocess.Popen(["lpr", "-P", printer_name], stdin=subprocess.PIPE)
                     lpr.stdin.write(zpl_code.encode('utf-8'))
-                    lpr.stdin.close()'''
+                    lpr.stdin.close()
             print("Se enviaron los rótulos a la impresora correctamente.")            
         except Exception as e:            
             print(f"No se pudo imprimir: {str(e)}")
