@@ -12,8 +12,14 @@ import json
 class MiApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Impresion rotulos")
-        self.root.geometry("800x600")
+        self.app_name = "Impresión de Rótulos"
+        self.version = "1.0.0"
+        self.author = "Mario Estrada"
+        self.company = "Semantica Digital S.A.S"
+        self.year = "2025"
+        self.website = "https://semantica.com.co"
+        self.root.title(f"{self.app_name} v{self.version}")
+        self.root.geometry("800x600")        
 
         self.message_queue = queue.Queue()
 
@@ -24,14 +30,13 @@ class MiApp:
         self.iniciar_servicio_rabbit()
         self.verificar_mensajes()        
     
-    def crear_interfaz(self):
-        # Frame principal
+    def crear_interfaz(self):        
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(0, weight=1)
         self.lbl_bienvenida = ttk.Label(
             main_frame, 
-            text="Bienvenido a la App para impresión de rótulos", 
+            text="ZDesigner ZD230-203dpi ZPL", 
             font=('Helvetica', 14, 'bold')
         )
         self.lbl_bienvenida.grid(row=0, column=0, pady=10)
@@ -41,8 +46,8 @@ class MiApp:
         btn_frame.grid(row=2, column=0, pady=10)        
         self.btn_imprimir = ttk.Button(
             btn_frame,
-            text="Imprimir Rótulo",
-            command=self.imprimir_rotulo
+            text="Imprimir prueba",
+            command=self.imprimir_rotulo_prueba
         )
         self.btn_imprimir.pack(side=tk.LEFT, padx=5)
     
@@ -91,8 +96,8 @@ class MiApp:
     def imprimir_rotulo(self, datos):
         try:
             datos_dict = self.validar_estructura(datos)                        
-            guia = datos_dict['guia']
-            unidades = int(guia['unidades'])
+            guia = datos_dict['guia']            
+            unidades = int(guia['unidades'])               
             for unidad in range(1, unidades + 1):
                 zpl_code = self.generar_rotulo(datos_dict, str(unidad))                                                        
                 if sys.platform == 'win32':
@@ -118,6 +123,23 @@ class MiApp:
         except Exception as e:            
             print(f"No se pudo imprimir: {str(e)}")
     
+    def imprimir_rotulo_prueba(self):
+        datos_prueba = {
+            "operador": "prueba",
+            "guia": {
+                "id": "TEST12345",
+                "documento_cliente": "DOC98765",
+                "destinatario": "CLIENTE DE PRUEBA",
+                "direccion": "CALLE FALSA 123",
+                "destino": "CIUDAD PRUEBA",
+                "remitente": "EMPRESA DEMO",
+                "zona": "ZONATEST",
+                "unidades": "2"
+            }
+        }
+        datos_json = json.dumps(datos_prueba)        
+        self.imprimir_rotulo(datos_json)
+
     def generar_rotulo(self, datos, unidad):        
         # Visualizador https://labelary.com/viewer.html
         # Documentacion https://labelary.com/zpl.html 
