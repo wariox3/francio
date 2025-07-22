@@ -1,5 +1,6 @@
 from decouple import config, Config, RepositoryEnv
 from tkinter import ttk, messagebox, filedialog
+from configuracion import ConfiguracionRabbitMQ
 import tkinter as tk
 import os
 import sys
@@ -9,91 +10,11 @@ import threading
 import queue
 import json
 
-
-class ConfiguracionRabbitMQ(tk.Toplevel):
-    def __init__(self, parent, callback):
-        super().__init__(parent)
-        self.title("Configuración de Conexión RabbitMQ")
-        self.callback = callback
-        self.config = Config(RepositoryEnv('.env'))
-        
-        # Variables para los campos de entrada
-        self.host = tk.StringVar(value=self.config('AMQP_HOST', default='localhost'))
-        self.port = tk.StringVar(value=self.config('AMQP_PORT', default='5672'))
-        self.vhost = tk.StringVar(value=self.config('AMQP_VHOST', default='/'))
-        self.user = tk.StringVar(value=self.config('AMQP_USER', default='guest'))
-        self.password = tk.StringVar(value=self.config('AMQP_PASSWORD', default='guest'))
-        
-        self.create_widgets()
-        
-    def create_widgets(self):
-        main_frame = ttk.Frame(self, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Host
-        ttk.Label(main_frame, text="Host:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.host, width=30).grid(row=0, column=1, sticky=tk.EW, padx=5)
-        
-        # Port
-        ttk.Label(main_frame, text="Puerto:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.port, width=30).grid(row=1, column=1, sticky=tk.EW, padx=5)
-        
-        # Virtual Host
-        ttk.Label(main_frame, text="Virtual Host:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.vhost, width=30).grid(row=2, column=1, sticky=tk.EW, padx=5)
-        
-        # Usuario
-        ttk.Label(main_frame, text="Usuario:").grid(row=3, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.user, width=30).grid(row=3, column=1, sticky=tk.EW, padx=5)
-        
-        # Contraseña
-        ttk.Label(main_frame, text="Contraseña:").grid(row=4, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.password, show="*", width=30).grid(row=4, column=1, sticky=tk.EW, padx=5)
-        
-        # Botones
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=5, column=0, columnspan=2, pady=10)
-        
-        ttk.Button(btn_frame, text="Guardar", command=self.save_config).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Cancelar", command=self.destroy).pack(side=tk.LEFT, padx=5)
-        
-        # Hacer que la ventana no sea redimensionable
-        self.resizable(False, False)
-        
-    def save_config(self):
-        try:
-            # Validar los datos antes de guardar
-            int(self.port.get())  # Validar que el puerto sea un número
-            
-            # Crear el contenido del archivo .env
-            env_content = f"""AMQP_HOST={self.host.get()}
-AMQP_PORT={self.port.get()}
-AMQP_VHOST={self.vhost.get()}
-AMQP_USER={self.user.get()}
-AMQP_PASSWORD={self.password.get()}
-"""
-            
-            # Guardar en el archivo .env
-            with open('.env', 'w') as f:
-                f.write(env_content)
-                
-            messagebox.showinfo("Éxito", "Configuración guardada correctamente.\nLa aplicación se reiniciará para aplicar los cambios.")
-            
-            # Cerrar la ventana y llamar al callback
-            self.destroy()
-            self.callback()
-            
-        except ValueError:
-            messagebox.showerror("Error", "El puerto debe ser un número válido")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar la configuración: {str(e)}")
-
-
 class MiApp:
     def __init__(self, root):
         self.root = root
         self.app_name = "Impresión de Rótulos"
-        self.version = "1.0.0"
+        self.version = "1.0.1"
         self.author = "Mario Estrada"
         self.company = "Semantica Digital S.A.S"
         self.year = "2025"
@@ -102,7 +23,8 @@ class MiApp:
         self.root.geometry("800x600")        
 
         self.message_queue = queue.Queue()
-
+        self.max_messages = 10
+        self.current_messages = []
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
         self.create_menu()
@@ -139,29 +61,98 @@ class MiApp:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(0, weight=1)
-        self.lbl_bienvenida = ttk.Label(
-            main_frame, 
+        
+        # Frame superior con información de la impresora y estado
+        top_frame = ttk.Frame(main_frame)
+        top_frame.grid(row=0, column=0, sticky="ew", pady=10)
+        
+        self.lbl_impresora = ttk.Label(
+            top_frame, 
             text="ZDesigner ZD230-203dpi ZPL", 
             font=('Helvetica', 14, 'bold')
         )
-        self.lbl_bienvenida.grid(row=0, column=0, pady=10)
+        self.lbl_impresora.pack()
         
-        # Botones
+        self.lbl_estado_servicio = ttk.Label(
+            top_frame,
+            text="",
+            font=('Helvetica', 10)
+        )
+        self.lbl_estado_servicio.pack()
+
+        # Frame para botones
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=2, column=0, pady=10)        
+        btn_frame.grid(row=1, column=0, pady=10)        
         self.btn_imprimir = ttk.Button(
             btn_frame,
             text="Imprimir prueba",
             command=self.imprimir_rotulo_prueba
         )
         self.btn_imprimir.pack(side=tk.LEFT, padx=5)
+
+        self.btn_reintentar = ttk.Button(
+            btn_frame,
+            text="Reintentar conexión",
+            command=self.reintentar_conexion
+        )
+        self.btn_reintentar.pack_forget()  # Se oculta hasta que sea necesario
+        
+        # Frame para mensajes
+        msg_frame = ttk.LabelFrame(main_frame, text="Mensajes Recibidos", padding="10")
+        msg_frame.grid(row=2, column=0, sticky="nsew", pady=10)
+        msg_frame.columnconfigure(0, weight=1)
+        msg_frame.rowconfigure(0, weight=1)
+        
+        # Label para mostrar mensajes con scrollbar
+        self.msg_container = ttk.Frame(msg_frame)
+        self.msg_container.grid(row=0, column=0, sticky="nsew")
+        self.msg_container.columnconfigure(0, weight=1)
+        
+        self.lbl_mensajes = tk.Text(
+            self.msg_container,
+            wrap=tk.WORD,
+            height=10,
+            state="disabled",
+            font=('Helvetica', 10)
+        )
+        self.lbl_mensajes.grid(row=0, column=0, sticky="nsew")
+        
+        scrollbar = ttk.Scrollbar(self.msg_container, command=self.lbl_mensajes.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.lbl_mensajes.config(yscrollcommand=scrollbar.set)
+        
+        # Configurar peso de filas para que el frame de mensajes ocupe el espacio restante
+        main_frame.rowconfigure(2, weight=1)             
     
+    def actualizar_estado_servicio(self, cola=None):
+        """Actualiza el Label y muestra/oculta el botón de reintentar según el estado de la conexión"""
+        if self.rabbit_connected:
+            self.lbl_estado_servicio.config(
+                text=f"Servicio iniciado... escuchando mensajes de la cola {cola}",
+                foreground="green"
+            )
+            self.btn_reintentar.pack_forget()
+        else:
+            self.lbl_estado_servicio.config(
+                text=f"El servicio no se inició. Error: {self.connection_error}",
+                foreground="red"
+            )
+            self.btn_reintentar.pack(side=tk.LEFT, padx=5)  # Muestra el botón de reintentar
+    
+    def reintentar_conexion(self):
+        """Intenta reconectar a RabbitMQ"""
+        self.lbl_estado_servicio.config(text="Intentando reconectar...", foreground="blue")
+        self.btn_reintentar.pack_forget()  
+        self.root.update()  
+        self.iniciar_servicio_rabbit()
+
     def iniciar_servicio_rabbit(self):        
         thread = threading.Thread(target=self.servicio_rabbit, daemon=True)
         thread.start()
 
     def servicio_rabbit(self):
         try:
+            cola = config('AMQP_COLA')
             params = pika.ConnectionParameters(
                 host=config('AMQP_HOST'),
                 port=config('AMQP_PORT'),
@@ -175,25 +166,42 @@ class MiApp:
             )            
             connection = pika.BlockingConnection(params)
             channel = connection.channel()
-            channel.queue_declare(queue='rotulo', durable=True)
+            channel.queue_declare(queue=cola, durable=True)
             def callback(ch, method, properties, body):
                 mensaje = body.decode('utf-8')
                 print(f"Mensaje recibido: {mensaje}")
                 self.imprimir_rotulo(mensaje)
                 self.message_queue.put(mensaje)
-            channel.basic_consume(queue='rotulo',on_message_callback=callback,auto_ack=True)
+            channel.basic_consume(queue=cola,on_message_callback=callback,auto_ack=True)
             
             print(" [*] Esperando mensajes. Presiona CTRL+C para salir")
+            self.rabbit_connected = True
+            self.connection_error = ""
+            self.root.after(0, self.actualizar_estado_servicio(cola))
             channel.start_consuming()
                 
         except Exception as e:
             print(f"Error de conexión: {e}")
-            self.message_queue.put(f"Error conectando a RabbitMQ: {e}")        
+            self.rabbit_connected = False
+            self.connection_error = str(e)
+            self.message_queue.put(f"Error conectando a RabbitMQ: {e}")
+            self.root.after(0, self.actualizar_estado_servicio)       
                 
     def verificar_mensajes(self):
         try:
             while True:
                 mensaje = self.message_queue.get_nowait()
+                # Agregar el mensaje a la lista y mantener solo los últimos
+                self.current_messages.append(mensaje)
+                if len(self.current_messages) > self.max_messages:
+                    self.current_messages.pop(0)
+                
+                # Actualizar el Label
+                self.lbl_mensajes.config(state="normal")
+                self.lbl_mensajes.delete(1.0, tk.END)
+                self.lbl_mensajes.insert(tk.END, "\n".join(self.current_messages))
+                self.lbl_mensajes.config(state="disabled")
+                self.lbl_mensajes.see(tk.END)  # Auto-scroll al final                
         except queue.Empty:
             pass        
         self.root.after(100, self.verificar_mensajes)
@@ -248,15 +256,18 @@ class MiApp:
     def generar_rotulo(self, datos, unidad):        
         # Visualizador https://labelary.com/viewer.html
         # Documentacion https://labelary.com/zpl.html 
+        operador_nombre = datos['operador_nombre']
         guia = datos['guia']
         id = guia['id']
+        fecha = guia['fecha']
         documento_cliente = guia['documento_cliente']
         destinatario = guia['destinatario']
         direccion = guia['direccion']
         destino = guia['destino']
         remitente = guia['remitente']
         zona = guia['zona']        
-        unidades = guia['unidades']               
+        unidades = guia['unidades']  
+        cobro_entrega = guia['cobro_entrega']             
         zpl_code = f"""
 ^XA
 ^MMT
@@ -264,13 +275,16 @@ class MiApp:
 ^LL0240
 ^FO380,130^BQN,2,4^FDQA,{id}U{unidad}^FS
 ^FO2,40^A0,30^FDGUIA No. {id}^FS
+^FO300,40^A0,15^FDFECHA {fecha}^FS
 ^FO2,70^A0,30^FDDOC CLIENTE: {documento_cliente}^FS
 ^FO2,100^A0,20^FDDESTINATARIO: {destinatario}^FS
 ^FO2,120^A0,20^FDDIRECCION: {direccion}^FS
 ^FO2,140^A0,20^FDDESTINO: {destino}^FS
 ^FO2,160^A0,20^FDREMITENTE: {remitente}^FS
 ^FO2,180^A0,20^FDZONA: {zona}^FS
-^FO150,180^A0,20^FDPIEZA {unidad}/{unidades}^FS
+^FO180,180^A0,20^FDPIEZA {unidad}/{unidades}^FS
+^FO2,200^A0,20^FD{operador_nombre}^FS
+^FO180,200^A0,20^FDCOBRO: {cobro_entrega}^FS
 ^XZ
             """                              
         return zpl_code.strip() 
@@ -285,15 +299,18 @@ class MiApp:
         
         required_fields = {
             "operador": str,
+            "operador_nombre": str,
             "guia": {
                 "id": str,
+                "fecha": str,
                 "documento_cliente": str,
                 "destinatario": str,
                 "direccion": str,
                 "destino": str,
                 "remitente": str,
                 "zona": str,
-                "unidades": str
+                "unidades": str,
+                "cobro_entrega": str
             }
         }
         
