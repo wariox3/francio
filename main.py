@@ -14,7 +14,7 @@ class MiApp:
     def __init__(self, root):
         self.root = root
         self.app_name = "Impresión de Rótulos"
-        self.version = "1.0.1"
+        self.version = "1.0.2"
         self.author = "Mario Estrada"
         self.company = "Semantica Digital S.A.S"
         self.year = "2025"
