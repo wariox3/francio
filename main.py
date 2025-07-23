@@ -264,7 +264,7 @@ class MiApp:
         destinatario = guia['destinatario']
         direccion = guia['direccion']
         destino = guia['destino']
-        remitente = guia['remitente']
+        remitente = guia['remitente'][:25]
         zona = guia['zona']        
         unidades = guia['unidades']  
         cobro_entrega = guia['cobro_entrega']             
